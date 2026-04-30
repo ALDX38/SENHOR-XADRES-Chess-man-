@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Vendas e Projeção</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1, h2 { color: #2c3e50; }
+        .form-group { display: flex; flex-direction: column; margin-bottom: 15px; }
+        label { font-weight: bold; margin-bottom: 5px; }
+        input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        .hidden { display: none !important; }
+        .preview-box { background-color: #e8f4f8; padding: 15px; border-left: 4px solid #3498db; margin-bottom: 15px; border-radius: 4px; }
+        
+        .btn-salvar { background-color: #27ae60; color: white; border: none; padding: 15px; font-size: 16px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; }
+        .btn-salvar:hover { background-color: #219150; }
+        
+        .btn-apagar { background-color: #e74c3c; color: white; border: none; padding: 8px 12px; font-size: 14px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-apagar:hover { background-color: #c0392b; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #2c3e50; color: white; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        hr { border: 0; height: 1px; background: #eee; margin: 30px 0; }
+        .text-center { text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Criar Nova Venda</h1>
+    
+    <form id="vendaForm">
+        <div class="grid-2">
+            <div class="form-group">
+                <label>Nome do Produto:</label>
+                <input type="text" id="produto" required placeholder="Ex: Cadeira Gamer">
+            </div>
+            <div class="form-group">
+                <label>Empresa Vendedora:</label>
+                <input type="text" id="vendedora" required placeholder="Sua Empresa">
+            </div>
+            <div class="form-group">
+                <label>Empresa Compradora:</label>
+                <input type="text" id="compradora" required placeholder="Cliente S/A">
+            </div>
+            <div class="form-group">
+                <label>Data da Venda:</label>
+                <input type="date" id="dataVenda" required>
+            </div>
+            <div class="form-group">
+                <label>Valor Unitário (R$):</label>
+                <input type="number" id="valor" step="0.01" required placeholder="Ex: 1500.00">
+            </div>
+            <div class="form-group">
+                <label>Quantidade:</label>
+                <input type="number" id="quantidade" value="1" min="1" required>
+            </div>
+            <div class="form-group">
+                <label>Forma de Pagamento :</label>
+                <select id="formaPagamento" required>
+                    <option value="A vista">À vista</option>
+                    <option value="Parcelado">Parcelado</option>
+                </select>
+            </div>
+            <div class="form-group hidden" id="divParcelas">
+                <label>Máximo de Parcelas :</label>
+                <select id="parcelas">
+                    <option value="2">2x</option>
+                    <option value="3">3x</option>
+                    <option value="4">4x</option>
+                    <option value="5">5x</option>
+                    <option value="6">6x</option>
+                    <option value="7">7x</option>
+                    <option value="8">8x</option>
+                    <option value="9">9x</option>
+                    <option value="10">10x</option>
+                    <option value="11">11x</option>
+                    <option value="12">12x</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="preview-box" id="previewBox">
+            <strong>Resumo Financeiro:</strong><br>
+            <span id="textoPreview">Preencha os valores para ver a simulação das parcelas.</span>
+        </div>
+
+        <button type="submit" class="btn-salvar">Salvar Venda no Banco de Dados</button>
+    </form>
+
+    <hr>
+
+    <h2>Relatório Mensal (O que você tem a receber)</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Mês/Ano</th>
+                <th>Valor a Receber (R$)</th>
+            </tr>
+        </thead>
+        <tbody id="tabelaProjecao">
+            </tbody>
+    </table>
+
+    <hr>
+
+    <h2>Histórico de Vendas</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Produto</th>
+                <th>Comprador</th>
+                <th>Total</th>
+                <th>Pagamento</th>
+                <th>Data</th>
+                <th class="text-center">Ações</th>
+            </tr>
+        </thead>
+        <tbody id="tabelaVendas">
+            </tbody>
+    </table>
+</div>
+
+<script>
+    
+    const form = document.getElementById('vendaForm');
+    const formaPagamento = document.getElementById('formaPagamento');
+    const divParcelas = document.getElementById('divParcelas');
+    const selectParcelas = document.getElementById('parcelas');
+    const inputValor = document.getElementById('valor');
+    const inputQtd = document.getElementById('quantidade');
+    const textoPreview = document.getElementById('textoPreview');
+    let vendas = JSON.parse(localStorage.getItem('vendasDB')) || [];
+
+    formaPagamento.addEventListener('change', () => {
+        if (formaPagamento.value === 'Parcelado') {
+            divParcelas.classList.remove('hidden');
+        } else {
+            divParcelas.classList.add('hidden');
+        }
+        atualizarPreview();
+    });
+
+
+    [inputValor, inputQtd, formaPagamento, selectParcelas].forEach(el => {
+        el.addEventListener('input', atualizarPreview);
+    });
+
+    function atualizarPreview() {
+        const valor = parseFloat(inputValor.value) || 0;
+        const qtd = parseInt(inputQtd.value) || 0;
+        const total = valor * qtd;
+
+        if (total === 0) {
+            textoPreview.innerHTML = "Preencha os valores para ver a simulação das parcelas.";
+            return;
+        }
+
+        if (formaPagamento.value === 'A vista') {
+            textoPreview.innerHTML = `Valor Total: <b>R$ ${total.toFixed(2)}</b> <br> Você receberá: <b>1x de R$ ${total.toFixed(2)}</b> à vista.`;
+        } else {
+            const numParcelas = parseInt(selectParcelas.value);
+            const valorParcela = total / numParcelas;
+            textoPreview.innerHTML = `Valor Total: <b>R$ ${total.toFixed(2)}</b> <br> Você receberá: <b>${numParcelas}x de R$ ${valorParcela.toFixed(2)}</b> por mês.`;
+        }
+    }
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault(); 
+
+        const produto = document.getElementById('produto').value;
+        const vendedora = document.getElementById('vendedora').value;
+        const compradora = document.getElementById('compradora').value;
+        const dataVenda = document.getElementById('dataVenda').value;
+        const valorUnitario = parseFloat(inputValor.value);
+        const quantidade = parseInt(inputQtd.value);
+        const total = valorUnitario * quantidade;
+        const pagamento = formaPagamento.value;
+        const numParcelas = pagamento === 'A vista' ? 1 : parseInt(selectParcelas.value);
+        const valorDaParcela = total / numParcelas;
+
+        const novaVenda = {
+            id: Date.now(), 
+            produto,
+            vendedora,
+            compradora,
+            dataVenda,
+            total,
+            pagamento,
+            numParcelas,
+            valorDaParcela
+        };
+
+        vendas.push(novaVenda);
+        localStorage.setItem('vendasDB', JSON.stringify(vendas));
+        form.reset();
+        atualizarPreview();
+        formaPagamento.dispatchEvent(new Event('change')); // reseta a setinha
+        
+        renderizarTabelas();
+    });
+
+    function apagarVenda(idParaApagar) {
+        const confirmacao = confirm("Tem certeza que deseja apagar esta venda? Os relatórios mensais serão recalculados.");
+        
+        if (confirmacao) {
+            vendas = vendas.filter(venda => venda.id !== idParaApagar);
+            localStorage.setItem('vendasDB', JSON.stringify(vendas));
+            renderizarTabelas();
+        }
+    }
+
+    function renderizarTabelas() {
+        const tbodyVendas = document.getElementById('tabelaVendas');
+        const tbodyProjecao = document.getElementById('tabelaProjecao');
+        tbodyVendas.innerHTML = '';
+        tbodyProjecao.innerHTML = '';
+
+        let projecaoMensal = {}; 
+
+        if (vendas.length === 0) {
+            tbodyVendas.innerHTML = '<tr><td colspan="6" class="text-center">Nenhuma venda registrada ainda.</td></tr>';
+            tbodyProjecao.innerHTML = '<tr><td colspan="2" class="text-center">Nenhuma projeção disponível.</td></tr>';
+            return;
+        }
+
+        vendas.forEach(venda => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${venda.produto}</td>
+                <td>${venda.compradora}</td>
+                <td>R$ ${venda.total.toFixed(2)}</td>
+                <td>${venda.numParcelas}x de R$ ${venda.valorDaParcela.toFixed(2)}</td>
+                <td>${venda.dataVenda.split('-').reverse().join('/')}</td>
+                <td class="text-center">
+                    <button class="btn-apagar" onclick="apagarVenda(${venda.id})">Excluir</button>
+                </td>
+            `;
+            tbodyVendas.appendChild(tr);
+
+            let dataBase = new Date(venda.dataVenda);
+            dataBase.setMinutes(dataBase.getMinutes() + dataBase.getTimezoneOffset());
+
+            for (let i = 0; i < venda.numParcelas; i++) {
+                let dataParcela = new Date(dataBase.getFullYear(), dataBase.getMonth() + i, 1);
+                
+                let mesAno = dataParcela.getFullYear() + "-" + String(dataParcela.getMonth() + 1).padStart(2, '0');
+
+                if (!projecaoMensal[mesAno]) {
+                    projecaoMensal[mesAno] = 0;
+                }
+                projecaoMensal[mesAno] += venda.valorDaParcela;
+            }
+        });
+
+        const mesesOrdenados = Object.keys(projecaoMensal).sort();
+        mesesOrdenados.forEach(mes => {            
+            let mesFormatado = mes.split('-')[1] + '/' + mes.split('-')[0];
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${mesFormatado}</strong></td>
+                <td style="color: green; font-weight: bold;">R$ ${projecaoMensal[mes].toFixed(2)}</td>
+            `;
+            tbodyProjecao.appendChild(tr);
+        });
+    }
+
+    renderizarTabelas();
+</script>
+
+</body>
+</html>s
